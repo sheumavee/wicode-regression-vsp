@@ -21,9 +21,14 @@ Quickbooks.setOauthVersion('2.0');
 
 const wiCodeRequestEndpoint = "http://rad2.wigroup.co:8080/wigroup-tokenmanager/vsp/tokens";
 const wiCodeRequestAxiosConfig = ({
+  // headers: {
+  //   'apiId': 'VSP_50879', 
+  //   'sha1Password': '02bb745c1c6c2bfcbd536ff60ba92621fa991318',
+  //   'Content-Type': 'application/json'
+  // } 
   headers: {
-    'apiId': 'VSP_50879', 
-    'sha1Password': '02bb745c1c6c2bfcbd536ff60ba92621fa991318',
+    'apiId': 'VSP_50837', 
+    'sha1Password': '8f4019c8536c6ea8323cc9f44feee202498a0d96',
     'Content-Type': 'application/json'
   } 
 })

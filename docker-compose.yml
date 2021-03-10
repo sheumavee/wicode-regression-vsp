@@ -7,7 +7,7 @@ services:
     ports:
      - "8080:8080"
     environment:
-     - MONGODB_URI=mongodb://mongo:27017/test 
+     - MONGODB_URI=mongodb://wicodevsp-dev-5515:PkOyfC2MngBncZfrFmRQ83FV8CUG47@db-wicodevsp-dev-5515.nodechef.com:5366/wicodevsp-dev 
     links:
      - mongo 
     depends_on: 
@@ -15,4 +15,3 @@ services:
     volumes:
      - .:/starter
      - /starter/node_modules
-     
