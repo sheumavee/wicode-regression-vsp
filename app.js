@@ -33,6 +33,7 @@ const homeController = require('./controllers/home');
 const userController = require('./controllers/user');
 const apiController = require('./controllers/api');
 const contactController = require('./controllers/contact');
+const transactionController = require('./controllers/transaction');
 
 /**
  * API keys and Passport configuration.
@@ -88,7 +89,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
 app.use((req, res, next) => {
-  if (req.path === '/api/upload') {
+  if (req.path === '/api/upload' || req.path === '/api/requestwicode' || req.path.startsWith('/api/te/')) {
     // Multer multipart/form-data handling needs to occur before the Lusca CSRF check.
     next();
   } else {
@@ -145,11 +146,25 @@ app.post('/account/profile', passportConfig.isAuthenticated, userController.post
 app.post('/account/password', passportConfig.isAuthenticated, userController.postUpdatePassword);
 app.post('/account/delete', passportConfig.isAuthenticated, userController.postDeleteAccount);
 app.get('/account/unlink/:provider', passportConfig.isAuthenticated, userController.getOauthUnlink);
+app.get('/transactions/transaction', transactionController.getNewTransaction);
+
 
 /**
  * API examples routes.
  */
 app.get('/api', apiController.getApi);
+
+/**
+ * wiCode API examples routes.
+ */
+app.post('/api/requestwicode', apiController.requestWiCode);
+app.post('/api/te/transaction', apiController.teStartTransaction);
+app.post('/api/te/advice', apiController.teAdviceTransaction);
+//TODO: Transaction Polling Endpoint (for the Front-End to display info)
+app.get('/api/transaction', apiController.getTransaction);
+
+
+
 app.get('/api/lastfm', apiController.getLastfm);
 app.get('/api/nyt', apiController.getNewYorkTimes);
 app.get('/api/steam', passportConfig.isAuthenticated, passportConfig.isAuthorized, apiController.getSteam);

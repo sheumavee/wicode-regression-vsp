@@ -1,0 +1,44 @@
+extends ../layout
+
+block content
+  h1 New Transaction
+  hr
+  p.lead Select the scenario you would like to test.
+   form(action='/api/requestwicode' method='POST')
+    input(type='hidden', name='_csrf', value=_csrf)
+    input(type='hidden', name='channel', value='web')
+    input(type='hidden', name='tipAmount', value=0)
+    .form-group.row
+      label.col-md-3.col-form-label.font-weight-bold.text-right(for='transactionType') Transaction Type
+      .col-md-7
+        select.form-control(name='transactionType')
+            option(value='') Please Select the transaction type
+            option PAYMENT
+            option DEPOSIT
+            option WITHDRAWAL
+    .form-group.row
+      label.col-md-3.col-form-label.font-weight-bold.text-right(for='description') Description
+      .col-md-7
+        input.form-control(type='text', name='description', id='description', placeholder='Enter a description', autofocus, required)
+    .form-group.row
+      label.col-md-3.col-form-label.font-weight-bold.text-right(for='basketAmount') Amount
+      .col-md-7
+        input.form-control(type='number', name='basketAmount', id='basketAmount', placeholder='Enter the basket amount.', required)    
+    .form-group.row
+      label.col-md-3.col-form-label.font-weight-bold.text-right(for='transactionTestType') Transaction Response Test Type
+      .col-md-7
+        select.form-control(name='transactionTestType')
+            option(value='') Please select the transaction test scenario
+            option SUCCESS-TEST
+            option FAIL-TEST
+    .form-group.row
+      label.col-md-3.col-form-label.font-weight-bold.text-right(for='adviceTestType') Advice Response Test Type
+      .col-md-7
+        select.form-control(name='adviceTestType')
+            option(value='') Please select the transaction advice test scenario
+            option SUCCESS-TEST
+            option FAIL-TEST
+    .form-group.offset-sm-3.col-md-7.pl-2
+      button.btn.btn-success(type='submit')
+        i.fas.fa-qrcode.fa-sm
+        | Request wiCode

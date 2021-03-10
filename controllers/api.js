@@ -15,8 +15,272 @@ const axios = require('axios');
 const { google } = require('googleapis');
 const Quickbooks = require('node-quickbooks');
 const validator = require('validator');
+const QRCodeGenerator = require('qrcode');
 
 Quickbooks.setOauthVersion('2.0');
+
+const wiCodeRequestEndpoint = "http://rad2.wigroup.co:8080/wigroup-tokenmanager/vsp/tokens";
+const wiCodeRequestAxiosConfig = ({
+  headers: {
+    'apiId': 'VSP_50879', 
+    'sha1Password': '02bb745c1c6c2bfcbd536ff60ba92621fa991318',
+    'Content-Type': 'application/json'
+  } 
+})
+
+var Transaction = require('../models/Transaction');
+
+
+exports.getTransaction = (req, res, next) => {
+  var trxId = req.query.trxId;
+  if (trxId != null){
+    Transaction.findById(trxId).then(transactionData => {
+      return res.json({transactionData});
+    }).catch((error) => {
+      next(error);
+    });
+  } else{
+    return false;
+  }
+}
+
+
+/**
+ * POST /api/getwicode
+ * Inbound API to fetch token from TE
+ */
+exports.requestWiCode = (req, res, next) => {
+  //Create transaction 
+  var newTransaction = new Transaction();
+  newTransaction.description = req.body.description;
+  newTransaction.transactionType = req.body.transactionType;
+  
+  newTransaction.basketAmount = req.body.basketAmount;
+  if (newTransaction.transactionType == "PAYMENT")
+  {
+    newTransaction.tipAmount = req.body.tipAmount ? parseInt(req.body.tipAmount) : 0;
+    newTransaction.paymentAmount = parseInt(req.body.basketAmount) + newTransaction.tipAmount;
+  } else {
+    newTransaction.tipAmount = 0;
+    newTransaction.paymentAmount = req.body.basketAmount;
+  }
+
+  newTransaction.transactionTestType = req.body.transactionTestType;
+  newTransaction.adviceTestType = req.body.adviceTestType;
+  newTransaction.state = "NEW";
+  newTransaction.transactionProcessingLogs = new Array("VSP Transaction has been created.");
+  newTransaction.save(function(err){
+    if (err) {
+      console.log("ERROR: Could not create transaction.");
+      console.log(err)
+      return res.json({result: "Failed", error: err});
+    } else {
+      console.log("LOG: Transaction Successfully Created.");
+    }
+  });
+
+  //Synchronous call to TE to book a wiCode 
+  console.log("LOG: Requesting token from wiCode Platform.");
+  teTokenRequest(newTransaction.amount, newTransaction.transactionType, newTransaction.id).then(wiCodePlatformResponse =>
+    {
+      //Update transaction state 
+      newTransaction.bookedWiCode = wiCodePlatformResponse.token.wiCode;
+      newTransaction.state = "wiCodeBOOKED";
+      newTransaction.transactionProcessingLogs.push("Token has been received from wiCode Platform.");
+      newTransaction.save(); //TODO: Enhance to gracefully handle any potential database errors.
+
+      if (req.body.channel == "web")
+      {
+          res.render('transactions/wicodetest', {
+            title: 'Test wiCode',
+            trxId: newTransaction.id,
+            wiCodePlatformResponse
+          });
+      } else{
+        //Respond with wiCode for the transaction      
+        return res.json({wiCodePlatformResponse});
+      }
+
+    }).catch((error) => {
+      next(error);
+    });
+};
+
+function generateQRCodeURL(token){
+  
+  console.log("LOG: Generating QR Code to token: " + token);
+  
+  return QRCodeGenerator.toDataURL(token, function(err,qurl){
+    if (err){
+      console.log("ERROR: Could not generate QR Code.")  
+      console.log(err);
+      return false;
+    }
+    console("LOG: QR Code generated - URL: " + qurl);
+    return qurl;
+  });
+}
+
+function teTokenRequest(amount, transactionType, transactionReference){
+  return axios.post(wiCodeRequestEndpoint, {
+      maxTrxAmount: amount,
+      tokenLifeInMin: "15", //TODO: Move to .env
+      transactionType: transactionType,
+      vspReference: transactionReference
+    }, wiCodeRequestAxiosConfig).then(function(response){
+      console.log("LOG: Token Received from wiCode Platform.")
+
+      //TODO: Check for response code from platform. If wiCode is not present, this will just throw an exception. 
+      return response.data;
+
+    }).catch(function(error){
+      console.log("FAILED: Could not fetch token from wiCode Platform.")
+      console.log(error)
+      return false;
+    });
+}
+
+/**
+ * POST /api/te/transaction
+ * Inbound API to for TE to use to initiate the transaction
+ */
+exports.teStartTransaction = (req, res, next) => {
+  //Parse transaction request
+  console.log("LOG: Received Transaction Request from wiCode Platform for VSP Transaction ID: " + req.body.token.vspReference)
+  console.log(req.body);
+
+  //Find transaction entry in the database
+  Transaction.findByIdAndUpdate(req.body.token.vspReference,
+    {
+      wiTrxId : req.body.wiTrxId,
+      state : 'PENDING',
+      $push: { transactionProcessingLogs : 'Initiated Transaction Processing (from wiCode Platform Request).'}
+    }).exec().then(transactionData => {
+      if (transactionData == null){
+       console.log("ERROR: VSP Transaction not found. ID Submitted -> " + req.body.token.vspReference);
+       res.status(412).send(); //Pre-condition failed.
+      }  
+
+    //Check if the transaction types match 
+    if (transactionData.transactionType != req.body.type)
+    {
+      var errorText = "ERROR: Transaction Type Mismatch between wiCode Platform and VSP. Check the Transaction Type initiated at the Point of Sale.";
+      console.log(errorText);
+      Transaction.findByIdAndUpdate(transactionData.id,
+        {
+          state : 'FAILED',
+          $push: { transactionProcessingLogs : errorText}
+        }).catch((error) => {
+          next(error);
+        });
+      
+      return res.json({
+          responseCode: "0",
+          responseDesc: errorText,
+          vspTrxId: transactionData.id,
+          totalAmountProcessed: 0,
+          basketAmountProcessed: 0,
+        });
+    }
+  
+    //Pick up the test type, update the transaction entry and respond to TE.
+    if (transactionData.transactionTestType == 'SUCCESS-TEST'){    
+      console.log("SUCCESS TEST");
+      Transaction.findByIdAndUpdate(transactionData.id,
+        {
+          state : 'SUCCESSFULL_PENDING_RECON',
+          $push: { transactionProcessingLogs :'Transaction Success Test Detected -> VSP Transaction State will be updated to: SUCCESSFULL_PENDING_RECON'}
+        }).catch((error) => {
+          next(error);
+        });
+  
+        
+        return res.json({
+          responseCode: "-1",
+          responseDesc: "Success Test Transaction",
+          vspTrxId: transactionData.id,
+          totalAmountProcessed: transactionData.paymentAmount,
+          basketAmountProcessed: transactionData.basketAmount
+        //cashbackAmountProcessed: 0
+      });
+    } else {
+      console.log("FAILURE TEST");
+      Transaction.findByIdAndUpdate(transactionData.id,
+        {
+          state : 'FAILED_PENDING_RECON',
+          $push: { transactionProcessingLogs :'Transaction Failure Test Detected VSP Transaction State will be updated to: FAILED_PENDING_RECON' }
+        }).catch((error) => {
+          next(error);
+        });
+  
+      return res.json({
+        responseCode: "0",
+        responseDesc: "Failed Test Transaction",
+        vspTrxId: transactionData.id,
+        totalAmountProcessed: 0,
+        basketAmountProcessed: 0
+        //cashbackAmountProcessed: 0,
+      }); 
+    }
+  });
+};
+
+/**
+ * POST /api/te/advice
+ * Inbound API to for TE to use to advice on a transaction
+ */
+exports.teAdviceTransaction = (req, res, next) => {
+  console.log("LOG: Received Transaction Advice from wiCode Platform")
+  console.log(req.body);
+
+  //Find transaction entry in the database
+  Transaction.findByIdAndUpdate(req.body.originalTrx.vspTrxId,
+    {
+      $push: { transactionProcessingLogs :'Initiated Transaction Advice Process (from wiCode Platform Request).'}
+    }).exec().then(transactionData => {
+    if (transactionData == null){
+      console.log("ERROR: VSP Transaction not found. ID Submitted -> " + req.body.originalTrx.vspTrxId);
+      return res.status(412).send(); //Pre-condition failed.
+    }
+  
+    //Pick up the advice test type and update the transaction entry (connectivity test, to test SPR flows between retailers and wiGroup)
+    if (transactionData.adviceTestType == "SUCCESS-TEST"){
+      if (req.body.action == "FINALISE") {
+        transactionData.state = "SUCCESS";
+      } else {
+        transactionData.state = "FAILED";
+      }
+  
+      Transaction.findByIdAndUpdate(transactionData.id,
+        {
+          state : transactionData.state,
+          $push: { transactionProcessingLogs :'Transaction Advice Success Test Detected. Advice Call Successful on VSP Transaction in state: ' + transactionData.state }
+        }).catch((error) => {
+          next(error);
+        });//TODO: Gracefull handling
+    
+        return res.json({
+          responseCode: "-1",
+          responseDesc: "Success"
+        });
+    } else {
+      Transaction.findByIdAndUpdate(transactionData.id,
+        {
+          $push: { transactionProcessingLogs :'Transaction Advice Failure Test Detected. Advice Call Failed. VSP Transaction Remains in State: ' + transactionData.state}
+        }).catch((error) => {
+          next(error);
+        });//TODO: Graceful handling
+  
+      //Forced HTTP Code 400
+      return res.status(400).json({
+        responseCode: "5000",
+        responseDesc: "Failed Advice Test"
+      });
+      //return res.status(400).send();
+    }
+  })
+};
+
 
 /**
  * GET /api
@@ -27,6 +291,7 @@ exports.getApi = (req, res) => {
     title: 'API Examples'
   });
 };
+
 
 /**
  * GET /api/foursquare
