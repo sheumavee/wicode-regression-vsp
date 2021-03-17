@@ -73,7 +73,7 @@ exports.requestWiCode = (req, res, next) => {
   newTransaction.transactionTestType = req.body.transactionTestType;
   newTransaction.adviceTestType = req.body.adviceTestType;
   newTransaction.state = "NEW";
-  newTransaction.transactionProcessingLogs = new Array('[' + new Date().toISOString()() + ']' + 'VSP Transaction has been created.');
+  newTransaction.transactionProcessingLogs = new Array('[' + new Date().toISOString() + ']' + 'VSP Transaction has been created.');
   newTransaction.save(function(err){
     if (err) {
       console.log("ERROR: Could not create transaction.");
