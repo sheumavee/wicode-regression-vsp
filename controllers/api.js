@@ -73,7 +73,7 @@ exports.requestWiCode = (req, res, next) => {
   newTransaction.transactionTestType = req.body.transactionTestType;
   newTransaction.adviceTestType = req.body.adviceTestType;
   newTransaction.state = "NEW";
-  newTransaction.transactionProcessingLogs = new Array('[' + Date.now()() + ']' + 'VSP Transaction has been created.');
+  newTransaction.transactionProcessingLogs = new Array('[' + new Date().toISOString()() + ']' + 'VSP Transaction has been created.');
   newTransaction.save(function(err){
     if (err) {
       console.log("ERROR: Could not create transaction.");
@@ -91,7 +91,7 @@ exports.requestWiCode = (req, res, next) => {
       //Update transaction state 
       newTransaction.bookedWiCode = wiCodePlatformResponse.token.wiCode;
       newTransaction.state = "wiCodeBOOKED";
-      newTransaction.transactionProcessingLogs.push('[' + Date.now() + ']' + 'Token has been received from wiCode Platform.');
+      newTransaction.transactionProcessingLogs.push('[' + new Date().toISOString() + ']' + 'Token has been received from wiCode Platform.');
       newTransaction.save(); //TODO: Enhance to gracefully handle any potential database errors.
 
       if (req.body.channel == "web")
@@ -159,8 +159,8 @@ exports.teStartTransaction = (req, res, next) => {
     {
       wiTrxId : req.body.wiTrxId,
       state : 'PENDING',
-      last_updated_at : Date.now(),
-      $push: { transactionProcessingLogs : '[' + Date.now() + ']' + 'Initiated Transaction Processing (from wiCode Platform Request).'}
+      last_updated_at : new Date().toISOString(),
+      $push: { transactionProcessingLogs : '[' + new Date().toISOString() + ']' + 'Initiated Transaction Processing (from wiCode Platform Request).'}
     }).exec().then(transactionData => {
       if (transactionData == null){
        console.log("ERROR: VSP Transaction not found. ID Submitted -> " + req.body.token.vspReference);
@@ -175,8 +175,8 @@ exports.teStartTransaction = (req, res, next) => {
       Transaction.findByIdAndUpdate(transactionData.id,
         {
           state : 'FAILED',
-          last_updated_at : Date.now(),
-          $push: { transactionProcessingLogs : '[' + Date.now() + ']' + errorText}
+          last_updated_at : new Date().toISOString(),
+          $push: { transactionProcessingLogs : '[' + new Date().toISOString() + ']' + errorText}
         }).catch((error) => {
           next(error);
         });
@@ -196,8 +196,8 @@ exports.teStartTransaction = (req, res, next) => {
       Transaction.findByIdAndUpdate(transactionData.id,
         {
           state : 'SUCCESSFULL_PENDING_RECON',
-          last_updated_at : Date.now(),
-          $push: { transactionProcessingLogs :'[' + Date.now() + ']' + 'Transaction Success Test Detected -> VSP Transaction State will be updated to: SUCCESSFULL_PENDING_RECON'}
+          last_updated_at : new Date().toISOString(),
+          $push: { transactionProcessingLogs :'[' + new Date().toISOString() + ']' + 'Transaction Success Test Detected -> VSP Transaction State will be updated to: SUCCESSFULL_PENDING_RECON'}
         }).catch((error) => {
           next(error);
         });
@@ -216,8 +216,8 @@ exports.teStartTransaction = (req, res, next) => {
       Transaction.findByIdAndUpdate(transactionData.id,
         {
           state : 'FAILED_PENDING_RECON',
-          last_updated_at : Date.now(),
-          $push: { transactionProcessingLogs :'[' + Date.now() + ']' + 'Transaction Failure Test Detected VSP Transaction State will be updated to: FAILED_PENDING_RECON' }
+          last_updated_at : new Date().toISOString(),
+          $push: { transactionProcessingLogs :'[' + new Date().toISOString() + ']' + 'Transaction Failure Test Detected VSP Transaction State will be updated to: FAILED_PENDING_RECON' }
         }).catch((error) => {
           next(error);
         });
@@ -245,8 +245,8 @@ exports.teAdviceTransaction = (req, res, next) => {
   //Find transaction entry in the database
   Transaction.findByIdAndUpdate(req.body.originalTrx.vspTrxId,
     {
-      last_updated_at : Date.now(),
-      $push: { transactionProcessingLogs :'[' + Date.now() + ']' + 'Initiated Transaction Advice Process (from wiCode Platform Request).'}
+      last_updated_at : new Date().toISOString(),
+      $push: { transactionProcessingLogs :'[' + new Date().toISOString() + ']' + 'Initiated Transaction Advice Process (from wiCode Platform Request).'}
     }).exec().then(transactionData => {
     if (transactionData == null){
       console.log("ERROR: VSP Transaction not found. ID Submitted -> " + req.body.originalTrx.vspTrxId);
@@ -264,8 +264,8 @@ exports.teAdviceTransaction = (req, res, next) => {
       Transaction.findByIdAndUpdate(transactionData.id,
         {
           state : transactionData.state,
-          last_updated_at : Date.now(),
-          $push: { transactionProcessingLogs : '[' + Date.now() + ']' + 'Transaction Advice Success Test Detected. Advice Call Successful on VSP Transaction in state: ' + transactionData.state }
+          last_updated_at : new Date().toISOString(),
+          $push: { transactionProcessingLogs : '[' + new Date().toISOString() + ']' + 'Transaction Advice Success Test Detected. Advice Call Successful on VSP Transaction in state: ' + transactionData.state }
         }).catch((error) => {
           next(error);
         });//TODO: Gracefull handling
@@ -277,8 +277,8 @@ exports.teAdviceTransaction = (req, res, next) => {
     } else {
       Transaction.findByIdAndUpdate(transactionData.id,
         {
-          last_updated_at : Date.now(),
-          $push: { transactionProcessingLogs :'[' + Date.now() + ']' + 'Transaction Advice Failure Test Detected. Advice Call Failed. VSP Transaction Remains in State: ' + transactionData.state}
+          last_updated_at : new Date().toISOString(),
+          $push: { transactionProcessingLogs :'[' + new Date().toISOString() + ']' + 'Transaction Advice Failure Test Detected. Advice Call Failed. VSP Transaction Remains in State: ' + transactionData.state}
         }).catch((error) => {
           next(error);
         });//TODO: Graceful handling
