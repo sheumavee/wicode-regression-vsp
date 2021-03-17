@@ -18,7 +18,9 @@ var transactionSchema = mongoose.Schema({
     //testState: String, //"In Progress, Pending, Abandoned, Successful Test, Failed Test"
     transactionProcessingLogs: Array, //
     wiTrxId: String,
-    UserID: String
+    UserID: String,
+    created_at: {type: Date, default: Date.now},
+    last_updated_at : {type: Date, default: Date.now}
 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
